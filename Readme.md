@@ -52,7 +52,9 @@ Now here's the nifty part. Those decorators that you used in your schema.. they'
 
 ### Custom Decorators
 Are you wondering if it's possible to make your own decorators? If so, I have a short answer for you: YES! "Well, well. How do I go about that, good sir?" By following these simple guidelines:
+
 * Each value must be on its own line
+
 Yeah I know, I wrote guidelines and there's only one item. But there is a caveat: if the number of records you want is greater than the number of values in that file you will get slapped with an exception. Since that's the case I would recommend adding at least 1000 values to your decorator file.
 
 TL;DR
