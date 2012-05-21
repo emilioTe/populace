@@ -1,87 +1,151 @@
 import re, sys
 from glob import glob
 from os import getcwd, chdir
+from os.path import exists, isdir
 
-
-def parse(file_to_parse, file_to_save, records_to_create):
-  if records_to_create > 1000:
-    raise Exception('Records must be <= 1000')
-  
-  # Templates
-  table_template = '''DROP TABLE IF EXISTS {{table_name}};
+class SQLParser:
+  def __init__(self, file_to_parse, save_as, records_to_create):
+    
+    # Before we start we're going to create a
+    # list of data types that should not be
+    # quoted in our INSERT statements.
+    self.dont_quote = 'tinyint smallint mediumint integer int bigint decimal'.split()
+    
+    # Let's keep the arguments around for a
+    # bit, shall we?
+    self.file_to_parse = file_to_parse
+    self.save_as = save_as
+    self.records_to_create = records_to_create
+    
+    # We're also going to need to place our
+    # templates somewhere, so why not here?
+    self.template = {'table':'''DROP TABLE IF EXISTS {{table_name}};
 CREATE TABLE {{table_name}} (
 {{table_def}}
-);'''
-
-  insert_template = '''INSERT INTO {{table_name}} ({{table_cols}}) VALUES ({{values}});'''
-
-
-  # Preload the data in the lists folder
-  values = {}       # This will make it easier to grab the @command type and a value
-  cwd = getcwd()    # Preserve the current working directory
-  chdir('./lists')
-
-  filenames = glob('*.txt')
-  for filename in filenames:
-    value_type = filename[0:filename.find('.')]   # We want to use just the filename without the .txt
-    values[value_type] = []
+);''', 'insert': '''INSERT INTO {{table_name}} ({{table_cols}}) VALUES ({{values}});'''}
     
-    with open(filename, 'r') as file:
-      for line in file:
-        values[value_type].append(line.replace('\n', ''))
+    # Gonna need a container to hold all of the
+    # possible values from the lists folder too.
+    self.values = {}
+    
+    # Gotta make sure the file and directory 
+    # are even there.
+    self.files_exist()
+    
+    # Okay, so we're still running which means
+    # everything is where it should be. Let's
+    # continue by grabbing the decorators and
+    # their values.
+    self.preload_values()
+    
+    # "License and registration, sir." Time to
+    # get the SQL from the file.
+    self.contents = self.load_sql()
+    
+    # Now that we have the SQL file's contents go
+    # ahead and make sure it fits the bill for
+    # a schema.
+    self.matches = self.sql_integrity()
+    
+    # Okay, it's go time!
+    self.process()
+    
+    
+  def process(self):
+    for group in self.matches:
+      insert_actions = {}
+      
+      tableT = self.template.table.replace('{{table_name}}', group[0])
+      insertT = self.template.insert.replace('{{table_name}}', group[0])
+      
+      statements = [d.strip() for d in group[1].replace('\n', '').split(',')]
+      
+      # We need to tokenize each table statement to find any @commands to use 
+      # when creating the INSERT statements
+      for idx, statement in enumerate(statements):
+        tokens = statement.split()
+        
+        for token in tokens:
+          if token.find('@') == 0:
+            insert_actions[tokens[0]] = [token[1:]]
+            tokens.remove(token)
+          
+        # Quick list comparison needed to determine
+        # if the INSERT data should be in quotations.
+        #
+        # If after the set subtractions the length of
+        # tokens is one less than before we have a
+        # column that shouldn't be quoted.
+        if tokens[0] in insert_actions:
+          if len(set(tokens) - set(self.dont_quote)) == len(tokens) - 1:
+            insert_actions[tokens[0]].append(False)
+          else:
+            insert_actions[tokens[0]].append(True)
+        
+        statements[idx] = ' '.join(tokens)
+        
+      # Write the schema to disc
+      with open(save_as, 'a') as file:
+        file.write(tableT.replace('{{table_def}}', ',\n'.join(statements)) + '\n')
+        
+        for x in xrange(records_to_create):
+          insert_values = []
+          
+          # If the last item in the insert_actions.values()
+          # is True we know we need to INSERT that value
+          # using quotations.
+          for v in insert_actions.values():
+            if v[1] == True:
+              insert_values.append("'" + values[v[0]][x].replace("'", "''") + "'")
+            else:
+              insert_values.append(values[v[0]][x])
+          
+          file.write(insertT.replace('{{table_cols}}', ', '.join(insert_actions.keys())).replace('{{values}}', ', '.join(insert_values)) + '\n')
+  
+  
+  def files_exist(self):
+    if not isdir('./lists'):
+      raise IOError('The lists directory cannot be found.')
+    
+    if not exists(self.file_to_parse):
+      raise IOError('Schema file not found (-i ' + file_to_parse + ')')
+      
+    return True
+    
+    
+  def preload_values(self):
+    cwd = getcwd()    # Preserve the current working directory
+    chdir('./lists')
 
-  chdir(cwd)
+    filenames = glob('*.txt')
+    for filename in filenames:
+      value_type = filename[0:filename.find('.')]   # We want to use just the filename without the .txt
+      self.values[value_type] = []
+      
+      with open(filename, 'r') as file:
+        for line in file:
+          self.values[value_type].append(line.replace('\n', ''))
 
-
-
-  # Load the SQL file and save it's contents
-  contents = ''
-  try:
-    with open(file_to_parse, 'r') as file:
+    chdir(cwd)
+    
+    
+  def load_sql(self):
+    contents = ''
+    
+    with open(self.file_to_parse, 'r') as file:
       contents = file.read()
-  except IOError:
-    raise IOError('Schema file not found (-i ' + file_to_parse + ')')
-    
-
-  # Use a regular expression to parse the SQL saved in the contents variable
-  match = re.findall(r'\s?create\stable\s?(\w+)\s?\(\s?([\w ,\n\(\)@]+)\s?\)\s?;', contents, re.I)
-
-  if not match:
-    raise SyntaxError('Invalid schema. Check your SQL.')
-
-
-  # Begin interating through the array of tuples returned by re.findall
-  for group in match:
-    insert_actions, table_cols = {}, []
-    
-    tableT = table_template.replace('{{table_name}}', group[0])
-    insertT = insert_template.replace('{{table_name}}', group[0])
-    
-    statements = [d.strip() for d in group[1].replace('\n', '').split(',')]
-    
-    # We need to tokenize each table statement to find any @commands to use 
-    # when creating the INSERT statements
-    for idx, statement in enumerate(statements):
-      tokens = statement.split()
       
-      for token in tokens:
-        if token.find('@') == 0:
-          insert_actions[tokens[0]] = token[1:]
-          tokens.remove(token)
-        
-      statements[idx] = ' '.join(tokens)
-      
-    for col in insert_actions.keys():
-      table_cols.append(col)
+    if len(contents.strip()) < 20:
+      raise SyntaxError('Invalid SQL.')
     
+    return contents
+  
+  
+  def sql_integrity(self):
+    expression = r'\s?create\stable\s?(\w+)\s?\(\s?([\w ,\n\(\)@]+)\s?\)\s?;'
+    matches = re.findall(expression, self.contents, re.I)
+
+    if not match:
+      raise SyntaxError('Invalid schema. Check your SQL.')
     
-    # Write the schema to disc
-    with open(file_to_save, 'a') as file:
-      file.write(tableT.replace('{{table_def}}', ',\n'.join(statements)) + '\n')
-      
-      for x in xrange(records_to_create):
-        insert_values = []
-        for v in insert_actions.values():
-          insert_values.append("'" + values[v][x].replace("'", "''") + "'")
-        
-        file.write(insertT.replace('{{table_cols}}', ', '.join(table_cols)).replace('{{values}}', ', '.join(insert_values)) + '\n')
+    return matches
