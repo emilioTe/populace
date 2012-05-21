@@ -55,8 +55,8 @@ CREATE TABLE {{table_name}} (
     for group in self.matches:
       insert_actions = {}
       
-      tableT = self.template.table.replace('{{table_name}}', group[0])
-      insertT = self.template.insert.replace('{{table_name}}', group[0])
+      tableT = self.template['table'].replace('{{table_name}}', group[0])
+      insertT = self.template['insert'].replace('{{table_name}}', group[0])
       
       statements = [d.strip() for d in group[1].replace('\n', '').split(',')]
       
@@ -85,10 +85,10 @@ CREATE TABLE {{table_name}} (
         statements[idx] = ' '.join(tokens)
         
       # Write the schema to disc
-      with open(save_as, 'a') as file:
+      with open(self.save_as, 'a') as file:
         file.write(tableT.replace('{{table_def}}', ',\n'.join(statements)) + '\n')
         
-        for x in xrange(records_to_create):
+        for x in xrange(self.records_to_create):
           insert_values = []
           
           # If the last item in the insert_actions.values()
@@ -96,9 +96,9 @@ CREATE TABLE {{table_name}} (
           # using quotations.
           for v in insert_actions.values():
             if v[1] == True:
-              insert_values.append("'" + values[v[0]][x].replace("'", "''") + "'")
+              insert_values.append("'" + self.values[v[0]][x].replace("'", "''") + "'")
             else:
-              insert_values.append(values[v[0]][x])
+              insert_values.append(self.values[v[0]][x])
           
           file.write(insertT.replace('{{table_cols}}', ', '.join(insert_actions.keys())).replace('{{values}}', ', '.join(insert_values)) + '\n')
   
@@ -145,7 +145,7 @@ CREATE TABLE {{table_name}} (
     expression = r'\s?create\stable\s?(\w+)\s?\(\s?([\w ,\n\(\)@]+)\s?\)\s?;'
     matches = re.findall(expression, self.contents, re.I)
 
-    if not match:
+    if not matches:
       raise SyntaxError('Invalid schema. Check your SQL.')
     
     return matches
