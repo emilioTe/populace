@@ -108,7 +108,7 @@ CREATE TABLE {{table_name}} (
       raise IOError('The lists directory cannot be found.')
     
     if not exists(self.file_to_parse):
-      raise IOError('Schema file not found (-i ' + file_to_parse + ')')
+      raise IOError('Schema file not found (-i ' + self.file_to_parse + ')')
       
     return True
     
