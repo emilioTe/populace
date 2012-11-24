@@ -70,12 +70,11 @@ CREATE TABLE {{table_name}} (
             insert_actions[tokens[0]] = [token[1:]]
             tokens.remove(token)
           
-        # Quick list comparison needed to determine
-        # if the INSERT data should be in quotations.
+        # List comparison needed to determine
+        # if the INSERT data should be quoted.
         #
-        # If after the set subtractions the length of
-        # tokens is one less than before we have a
-        # column that shouldn't be quoted.
+        # If the length of tokens is one less after the set() subtractions
+        # the column shouldn't be quoted.
         if tokens[0] in insert_actions:
           if len(set(tokens) - set(self.dont_quote)) == len(tokens) - 1:
             insert_actions[tokens[0]].append(False)
