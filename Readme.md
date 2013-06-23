@@ -1,5 +1,5 @@
 # populace
-SQL generator used to populate a test database based on your own schema.. and some decorators.
+SQL generator to populate a test database based on your own schema.. and some decorators.
 
 ## Requirements
 * [python](http://python.org)
@@ -48,13 +48,15 @@ Bam! You have an SQL file that's ready to be imported into your database.
 (1) The example uses MySQL, but you're free to use whatever relational database you want.
 
 ## Decorators
-Now here's the nifty part. Those decorators that you used in your schema.. they're not builtin. "Wait. What?!" Yep, you heard me right. Those decorators are dynamically generated from the text files included in the _lists_ folder. When you see one that you want simply add @filename (sans-extension) to your schema.
+Now here's the nifty part. Those decorators that you used in your schema.. they're not builtin. "Wait. What?!" Yep, you heard me right. Those decorators are dynamically generated from the text files included in the `lists` folder. When you see one that you want, simply add @filename (sans-extension) to your schema.
 
 ### Custom Decorators
 Are you wondering if it's possible to make your own decorators? If so, I have a short answer for you: YES! "Well, well. How do I go about that, good sir?" By following these simple guidelines:
 
 * Each value must be on its own line
 * Filenames cannot contain spaces
+
+If you're still confused, look at the files in the `lists` folder.
 
 There is another caveat: if the number of records you want is greater than the number of values in that file you will get slapped with an exception. Since that's the case I would recommend adding at least 1000 values to your decorator file.
 
